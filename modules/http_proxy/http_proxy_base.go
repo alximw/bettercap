@@ -49,6 +49,8 @@ type HTTPProxy struct {
 	Whitelist   []string
 	Sess        *session.Session
 	Stripper    *SSLStripper
+	Impersonate *Impersonator
+	Faithful    bool
 
 	jsHook      string
 	isTLS       bool

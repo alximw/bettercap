@@ -23,7 +23,27 @@ func (p *HTTPProxy) onRequestFilter(req *http.Request, ctx *goproxy.ProxyCtx) (*
 	if p.shouldProxy(req) {
 		p.Debug("< %s %s %s%s", req.RemoteAddr, req.Method, req.Host, req.URL.Path)
 
-		p.fixRequestHeaders(req)
+		// Decide impersonation BEFORE touching headers. When impersonating we
+		// must NOT run fixRequestHeaders: it strips Upgrade-Insecure-Requests
+		// and Accept-Encoding and injects Pragma: no-cache, which makes the
+		// request inconsistent with the Chrome UA and trips anti-bot edges
+		// (Akamai halts it). Preserving the browser's own headers + h2 is what
+		// lets the request through, exactly like a real browser / Burp.
+		impersonating := p.Impersonate != nil && p.Impersonate.InScope(req.Host, req.URL.Path)
+		if impersonating {
+			ctx.RoundTripper = p.Impersonate
+			p.Debug("impersonate: %s IN scope -> fingerprinted transport, preserving client headers", req.Host)
+		} else {
+			if p.Impersonate != nil {
+				p.Debug("impersonate: %s NOT in scope -> stock transport", req.Host)
+			}
+			// faithful mode forwards the client's headers untouched on the stock
+			// transport too (Burp-like); otherwise apply bettercap's legacy
+			// header rewriting.
+			if !p.Faithful {
+				p.fixRequestHeaders(req)
+			}
+		}
 
 		redir := p.Stripper.Preprocess(req, ctx)
 		if redir != nil {

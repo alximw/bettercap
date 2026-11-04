@@ -54,6 +54,8 @@ func NewHttpProxy(s *session.Session) *HttpProxy {
 		"false",
 		"Enable or disable SSL stripping."))
 
+	RegisterImpersonationParams(&mod.SessionModule, "http.proxy")
+
 	mod.AddHandler(session.NewModuleHandler("http.proxy on", "",
 		"Start HTTP proxy.",
 		func(args []string) error {
@@ -121,6 +123,13 @@ func (mod *HttpProxy) Configure() error {
 	mod.proxy.Whitelist = str.Comma(whitelist)
 
 	error := mod.proxy.Configure(address, proxyPort, httpPort, doRedirect, scriptPath, jsToInject, stripSSL)
+	if error != nil {
+		return error
+	}
+
+	if error = ConfigureImpersonation(&mod.SessionModule, "http.proxy", mod.proxy); error != nil {
+		return error
+	}
 
 	// save stripper to share it with other http(s) proxies
 	mod.State.Store("stripper", mod.proxy.Stripper)

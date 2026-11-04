@@ -69,6 +69,8 @@ func NewHttpsProxy(s *session.Session) *HttpsProxy {
 	mod.AddParam(session.NewStringParameter("https.proxy.whitelist", "", "",
 		"Comma separated list of hostnames to proxy if the blacklist is used (wildcard expressions can be used)."))
 
+	http_proxy.RegisterImpersonationParams(&mod.SessionModule, "https.proxy")
+
 	mod.AddHandler(session.NewModuleHandler("https.proxy on", "",
 		"Start HTTPS proxy.",
 		func(args []string) error {
@@ -164,6 +166,13 @@ func (mod *HttpsProxy) Configure() error {
 
 	error := mod.proxy.ConfigureTLS(address, proxyPort, httpPort, doRedirect, scriptPath, certFile, keyFile, jsToInject,
 		stripSSL)
+	if error != nil {
+		return error
+	}
+
+	if error = http_proxy.ConfigureImpersonation(&mod.SessionModule, "https.proxy", mod.proxy); error != nil {
+		return error
+	}
 
 	// save stripper to share it with other http(s) proxies
 	mod.State.Store("stripper", mod.proxy.Stripper)
